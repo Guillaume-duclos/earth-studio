@@ -3,8 +3,8 @@ import * as THREE from "three";
 import Earth from "./classes/Earth";
 import Planet from "./classes/Planet";
 import Stats from "three/examples/jsm/libs/stats.module";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { GUI } from "dat.gui";
+import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
+import {GUI} from "dat.gui";
 
 let container: HTMLElement | null = document.querySelector("#app");
 let scene: any = null;
@@ -114,6 +114,10 @@ const initScene = async () => {
 
   scene.add(moonMesh);
 
+  // Initialisation des étoiles
+  const stars = initStars();
+  scene.add(stars);
+
   // Lumière avant
   const directionLight = new THREE.DirectionalLight(0xffffff, 1);
   directionLight.position.set(0, 0, 100);
@@ -170,6 +174,101 @@ const initScene = async () => {
 
   return scene;
 };
+
+// Initialisation des étoiles
+const initStars = () => {
+  const starsGeometry = new THREE.BufferGeometry();
+  const starsPositions = [];
+  const starsColors = [];
+  const particleCount = 1000;
+  const colorsList = [
+    {
+      r: 235,
+      g: 246,
+      b: 248,
+    },
+    {
+      r: 248,
+      g: 254,
+      b: 251,
+    },
+    {
+      r: 252,
+      g: 255,
+      b: 255,
+    },
+    {
+      r: 255,
+      g: 255,
+      b: 236,
+    },
+    {
+      r: 254,
+      g: 254,
+      b: 253,
+    },
+    {
+      r: 255,
+      g: 242,
+      b: 199,
+    },
+    {
+      r: 255,
+      g: 255,
+      b: 237,
+    },
+    {
+      r: 237,
+      g: 255,
+      b: 255,
+    },
+    {
+      r: 217,
+      g: 234,
+      b: 244,
+    },
+    {
+      r: 255,
+      g: 247,
+      b: 224,
+    },
+  ];
+
+  const getRandomPointInSphere = (radius: number) => {
+    const vector3 = new THREE.Vector3();
+    vector3.randomDirection();
+
+    const normaliseRatio = 1 / Math.hypot(vector3.x, vector3.y, vector3.z);
+    vector3.setLength(radius * normaliseRatio);
+
+    return vector3;
+  };
+
+  const color = new THREE.Color();
+
+  for (let i = 0; i < particleCount; i++){
+    let vertex = getRandomPointInSphere(50);
+    starsPositions.push(vertex.x, vertex.y, vertex.z);
+
+    const selectedColor = colorsList[THREE.MathUtils.randInt(0, 9)];
+    const colorR = selectedColor.r;
+    const colorG = selectedColor.g;
+    const colorB = selectedColor.b;
+
+    color.setRGB( colorR, colorG, colorB );
+    starsColors.push( color.r, color.g, color.b );
+  }
+
+  starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+  starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+
+  const starsMaterial = new THREE.PointsMaterial({
+    size: 0.2,
+    vertexColors: true,
+  });
+
+  return new THREE.Points(starsGeometry, starsMaterial);
+}
 
 // Initialisation de la scene
 const threeScene = await initScene();
