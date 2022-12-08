@@ -14,6 +14,8 @@ let moonOrbit: number = Math.PI * 2;
 const moonOrbitRadius: number = 60;
 const moonOrbitSpeed: number = 0.001;
 
+let starsParticles: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+
 // Mise en place du menu de debug
 debugPanel = new GUI();
 
@@ -164,7 +166,15 @@ const initScene = async () => {
       Math.sin(moonOrbit) * moonOrbitRadius,
     );
 
-    // controls.update();
+    // Animation des étoiles
+    const stars = starsParticles.geometry.attributes.opacity.array;
+
+    for (let i = 0; i < stars.length; i++) {
+      stars[i] = THREE.MathUtils.randFloat(0.1, 1);
+    }
+
+    starsParticles.geometry.attributes.opacity.needsUpdate = true;
+
     stats.update();
 
     renderer.render(scene, camera);
@@ -178,9 +188,17 @@ const initScene = async () => {
 // Initialisation des étoiles
 const initStars = () => {
   const starsGeometry = new THREE.BufferGeometry();
+  const starsMaterial = new THREE.PointsMaterial({
+    sizeAttenuation: true,
+    vertexColors: true,
+    transparent: true,
+    depthTest: false,
+    size: 0.25,
+  });
   const starsPositions = [];
+  const starsOpacity = [];
   const starsColors = [];
-  const particleCount = 1000;
+  const particleCount = 2000;
   const colorsList = [
     {
       r: 235,
@@ -246,28 +264,27 @@ const initStars = () => {
 
   const color = new THREE.Color();
 
-  for (let i = 0; i < particleCount; i++){
-    let vertex = getRandomPointInSphere(50);
+  for (let i = 0; i < particleCount; i++) {
+    // Set la position des particules
+    let vertex = getRandomPointInSphere(THREE.MathUtils.randInt(50, 100));
     starsPositions.push(vertex.x, vertex.y, vertex.z);
 
+    // Set la couleur des particules
     const selectedColor = colorsList[THREE.MathUtils.randInt(0, 9)];
-    const colorR = selectedColor.r;
-    const colorG = selectedColor.g;
-    const colorB = selectedColor.b;
 
-    color.setRGB( colorR, colorG, colorB );
-    starsColors.push( color.r, color.g, color.b );
+    color.setRGB(selectedColor.r, selectedColor.g, selectedColor.b);
+    starsColors.push(color.r, color.g, color.b);
+
+    starsOpacity.push(THREE.MathUtils.randFloat(0.1, 1));
   }
 
   starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+  starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacity, 1));
   starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
 
-  const starsMaterial = new THREE.PointsMaterial({
-    size: 0.2,
-    vertexColors: true,
-  });
+  starsParticles = new THREE.Points(starsGeometry, starsMaterial);
 
-  return new THREE.Points(starsGeometry, starsMaterial);
+  return starsParticles;
 }
 
 // Initialisation de la scene
