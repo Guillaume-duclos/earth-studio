@@ -5,6 +5,10 @@ import Planet from "./classes/Planet";
 import Stats from "three/examples/jsm/libs/stats.module";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {GUI} from "dat.gui";
+import starVertexShader from './shaders/star/starVertex.glsl';
+import starFragmentShader from './shaders/star/starFragment.glsl';
+import {BufferGeometry, Points, ShaderMaterial} from "three";
+import StarsColor from './data/starsColor.json';
 
 let container: HTMLElement | null = document.querySelector("#app");
 let scene: any = null;
@@ -14,7 +18,7 @@ let moonOrbit: number = Math.PI * 2;
 const moonOrbitRadius: number = 60;
 const moonOrbitSpeed: number = 0.001;
 
-let starsParticles: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+let starsParticles: Points<BufferGeometry, ShaderMaterial>;
 
 // Mise en place du menu de debug
 debugPanel = new GUI();
@@ -41,7 +45,7 @@ const initScene = async () => {
     45,
     window.innerWidth / window.innerHeight,
     0.1,
-    100
+    200
   );
 
   // Création du render
@@ -67,7 +71,7 @@ const initScene = async () => {
     );*/
   });
 
-  controls.maxDistance = 70;
+  controls.maxDistance = 100;
   controls.minDistance = 2;
 
   // Gestion du redimensionnement de la fenêtre
@@ -167,13 +171,24 @@ const initScene = async () => {
     );
 
     // Animation des étoiles
-    const stars = starsParticles.geometry.attributes.opacity.array;
+    // const stars = starsParticles.geometry.attributes.opacity.array;
 
-    for (let i = 0; i < stars.length; i++) {
-      stars[i] = THREE.MathUtils.randFloat(0.1, 1);
-    }
+    /*for (let i = 0; i < stars.length; i++) {
+      // stars[i] = THREE.MathUtils.randFloat(0.1, 1);
+    }*/
 
-    starsParticles.geometry.attributes.opacity.needsUpdate = true;
+    // starsParticles.geometry.attributes.opacity.needsUpdate = true;
+
+    // const time = Date.now() * 0.005;
+
+    const geometry = starsParticles.geometry;
+    const attributes = geometry.attributes;
+
+    /*for (let i = 0; i < attributes.size.array.length; i ++) {
+      attributes.size.array[i] = 14 + 13 * Math.sin(0.1 * i + time);
+    }*/
+
+    attributes.size.needsUpdate = true;
 
     stats.update();
 
@@ -185,104 +200,60 @@ const initScene = async () => {
   return scene;
 };
 
+const getRandomPointInSphere = (radius: number) => {
+  const vector3 = new THREE.Vector3();
+  vector3.randomDirection();
+
+  const normaliseRatio = 1 / Math.hypot(vector3.x, vector3.y, vector3.z);
+  vector3.setLength(radius * normaliseRatio);
+
+  return vector3;
+};
+
 // Initialisation des étoiles
 const initStars = () => {
-  const starsGeometry = new THREE.BufferGeometry();
-  const starsMaterial = new THREE.PointsMaterial({
-    sizeAttenuation: true,
-    vertexColors: true,
-    transparent: true,
-    depthTest: false,
-    size: 0.25,
-  });
-  const starsPositions = [];
-  const starsOpacity = [];
-  const starsColors = [];
-  const particleCount = 2000;
-  const colorsList = [
-    {
-      r: 235,
-      g: 246,
-      b: 248,
-    },
-    {
-      r: 248,
-      g: 254,
-      b: 251,
-    },
-    {
-      r: 252,
-      g: 255,
-      b: 255,
-    },
-    {
-      r: 255,
-      g: 255,
-      b: 236,
-    },
-    {
-      r: 254,
-      g: 254,
-      b: 253,
-    },
-    {
-      r: 255,
-      g: 242,
-      b: 199,
-    },
-    {
-      r: 255,
-      g: 255,
-      b: 237,
-    },
-    {
-      r: 237,
-      g: 255,
-      b: 255,
-    },
-    {
-      r: 217,
-      g: 234,
-      b: 244,
-    },
-    {
-      r: 255,
-      g: 247,
-      b: 224,
-    },
-  ];
+  const particlesGeometry = new THREE.BufferGeometry();
+  const particlesCount = 3000;
+  const particlesPosition = [];
+  const particulesOpacity = [];
+  const particulesSize = [];
+  const particlesColor = [];
 
-  const getRandomPointInSphere = (radius: number) => {
-    const vector3 = new THREE.Vector3();
-    vector3.randomDirection();
-
-    const normaliseRatio = 1 / Math.hypot(vector3.x, vector3.y, vector3.z);
-    vector3.setLength(radius * normaliseRatio);
-
-    return vector3;
-  };
-
+  // const vertex = new THREE.Vector3();
   const color = new THREE.Color();
 
-  for (let i = 0; i < particleCount; i++) {
-    // Set la position des particules
-    let vertex = getRandomPointInSphere(THREE.MathUtils.randInt(50, 100));
-    starsPositions.push(vertex.x, vertex.y, vertex.z);
+  for (let i = 0; i < particlesCount; i++) {
+    // Définit la position de chaque particule
+    let vertex = getRandomPointInSphere(100);
+    particlesPosition.push(vertex.x, vertex.y, vertex.z);
 
-    // Set la couleur des particules
-    const selectedColor = colorsList[THREE.MathUtils.randInt(0, 9)];
+    // Définit la taille de chaque particule
+    particulesSize.push(THREE.MathUtils.randFloat(1, 1.6));
 
+    // Définit la couleur de chaque particule
+    const selectedColor = StarsColor[THREE.MathUtils.randInt(0, 9)];
     color.setRGB(selectedColor.r, selectedColor.g, selectedColor.b);
-    starsColors.push(color.r, color.g, color.b);
+    particlesColor.push(color.r, color.g, color.b);
 
-    starsOpacity.push(THREE.MathUtils.randFloat(0.1, 1));
+    // Définit l'opacité de chaque particule
+    particulesOpacity.push(THREE.MathUtils.randFloat(0.2, 1));
   }
 
-  starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
-  starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacity, 1));
-  starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+  particlesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlesPosition, 3));
+  particlesGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(particulesOpacity, 1));
+  particlesGeometry.setAttribute('color', new THREE.Float32BufferAttribute(particlesColor, 3));
+  particlesGeometry.setAttribute('size', new THREE.Float32BufferAttribute(particulesSize, 1));
 
-  starsParticles = new THREE.Points(starsGeometry, starsMaterial);
+  const particulesMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      color: { value: new THREE.Color(0xffffff) }
+    },
+    vertexShader: starVertexShader,
+    fragmentShader: starFragmentShader,
+    transparent: true,
+  });
+
+  starsParticles = new THREE.Points(particlesGeometry, particulesMaterial);
 
   return starsParticles;
 }
