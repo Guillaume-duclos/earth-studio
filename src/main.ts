@@ -7,18 +7,30 @@ import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {GUI} from "dat.gui";
 import starVertexShader from './shaders/star/starVertex.glsl';
 import starFragmentShader from './shaders/star/starFragment.glsl';
+import sunVertexShader from './shaders/sun/sunVertex.glsl';
+import sunFragmentShader from './shaders/sun/sunFragment.glsl';
 import {BufferGeometry, Points, ShaderMaterial} from "three";
 import StarsColor from './data/starsColor.json';
+import SunColor from './data/sunColor.json';
 
 let container: HTMLElement | null = document.querySelector("#app");
-let scene: any = null;
-let debugPanel: any;
+let scene: THREE.Object3D<THREE.Event> | THREE.Scene;
+let camera: THREE.PerspectiveCamera | THREE.Camera;
+let renderer: any;
+let debugPanel;
+let stats: Stats;
 
+// Orbit
 let moonOrbit: number = Math.PI * 2;
 const moonOrbitRadius: number = 60;
 const moonOrbitSpeed: number = 0.001;
 
+let earthMesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
+let cloudMesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial> | THREE.Object3D<THREE.Event>;
+let moonMesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
+
 let starsParticles: Points<BufferGeometry, ShaderMaterial>;
+let sunParticles: Points<BufferGeometry, ShaderMaterial>;
 
 // Mise en place du menu de debug
 debugPanel = new GUI();
@@ -41,7 +53,7 @@ const initScene = async () => {
   scene.updateMatrixWorld(true);
 
   // Création de la caméra
-  const camera = new THREE.PerspectiveCamera(
+  camera = new THREE.PerspectiveCamera(
     45,
     window.innerWidth / window.innerHeight,
     0.1,
@@ -49,7 +61,7 @@ const initScene = async () => {
   );
 
   // Création du render
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
@@ -74,14 +86,6 @@ const initScene = async () => {
   controls.maxDistance = 100;
   controls.minDistance = 2;
 
-  // Gestion du redimensionnement de la fenêtre
-  const onWindowResize = () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.render(scene, camera);
-  };
-
   // Mise en place de la gestion du ratio lors du redimensionnement de la fenêtre
   window.addEventListener("resize", onWindowResize, false);
 
@@ -97,8 +101,8 @@ const initScene = async () => {
     4
   );
 
-  const earthMesh = await earth.mesh();
-  const cloudMesh = await earth.cloudMesh();
+  earthMesh = await earth.mesh();
+  cloudMesh = await earth.cloudMesh();
 
   earthMesh.add(cloudMesh);
 
@@ -114,7 +118,7 @@ const initScene = async () => {
     0.005,
   );
 
-  const moonMesh = await moon.mesh();
+  moonMesh = await moon.mesh();
 
   moonMesh.position.set(moonOrbitRadius, 0, 0);
 
@@ -123,6 +127,11 @@ const initScene = async () => {
   // Initialisation des étoiles
   const stars = initStars();
   scene.add(stars);
+
+  // Initialisation du soleil
+  const sun = initSun();
+  scene.add(sun);
+  sun.position.set(2, 0, 0);
 
   // Lumière avant
   const directionLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -144,62 +153,78 @@ const initScene = async () => {
   //scene.add(cameraHelper);
 
   // Ajout des stats de performances
-  const stats = Stats();
+  stats = Stats();
   document.body.appendChild(stats.dom);
 
   camera.position.set(0, 0, 5);
   // console.log(camera);
   scene.add(camera);
 
-  // Fonction d'update
-  const animate = () => {
-    requestAnimationFrame(animate);
-
-    // Rotation de la terre sur elle-même
-    earthMesh.rotation.y += 0.0002;
-    cloudMesh.rotation.y += 0.00005;
-
-    // Rotation de la lune sur elle-même
-    moonMesh.rotation.y += 0.0004;
-
-    // Rotation de la lune autour de la terre
-    moonOrbit += moonOrbitSpeed;
-    moonMesh.position.set(
-      Math.cos(moonOrbit) * moonOrbitRadius,
-      0,
-      Math.sin(moonOrbit) * moonOrbitRadius,
-    );
-
-    // Animation des étoiles
-    // const stars = starsParticles.geometry.attributes.opacity.array;
-
-    /*for (let i = 0; i < stars.length; i++) {
-      // stars[i] = THREE.MathUtils.randFloat(0.1, 1);
-    }*/
-
-    // starsParticles.geometry.attributes.opacity.needsUpdate = true;
-
-    // const time = Date.now() * 0.005;
-
-    const geometry = starsParticles.geometry;
-    const attributes = geometry.attributes;
-
-    /*for (let i = 0; i < attributes.size.array.length; i ++) {
-      attributes.size.array[i] = 14 + 13 * Math.sin(0.1 * i + time);
-    }*/
-
-    attributes.size.needsUpdate = true;
-
-    stats.update();
-
-    renderer.render(scene, camera);
-  };
-
   animate();
 
   return scene;
 };
 
+// Gestion du redimensionnement de la fenêtre
+const onWindowResize = () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.render(scene, camera);
+};
+
+// Fonction d'update
+const animate = () => {
+  requestAnimationFrame(animate);
+  render();
+  stats.update();
+};
+
+const render = () => {
+  // Rotation de la terre sur elle-même
+  earthMesh.rotation.y += 0.0002;
+  cloudMesh.rotation.y += 0.00005;
+
+  // Rotation de la lune sur elle-même
+  moonMesh.rotation.y += 0.0004;
+
+  // Rotation de la lune autour de la terre
+  moonOrbit += moonOrbitSpeed;
+  moonMesh.position.set(
+    Math.cos(moonOrbit) * moonOrbitRadius,
+    0,
+    Math.sin(moonOrbit) * moonOrbitRadius,
+  );
+
+  // Animation des étoiles
+  const time = Date.now() * 0.001;
+  const starsAttributes = starsParticles.geometry.attributes;
+
+  for (let i = 0; i < starsAttributes.opacity.count; i++) {
+    starsAttributes.opacity.array[i] = oscillator(
+      time + i,
+      0.3,
+      0.1,
+      0,
+      THREE.MathUtils.randFloat(0.4, 0.6)
+    );
+  }
+
+  starsAttributes.opacity.needsUpdate = true;
+
+  // Animation du soleil
+  const sunAttributes = sunParticles.geometry.attributes;
+
+  for (let i = 0; i < sunAttributes.size.array.length; i ++) {
+    sunAttributes.size.array[i] = 14 + 13 * Math.sin(0.1 * i + time);
+  }
+
+  sunAttributes.size.needsUpdate = true;
+
+  renderer.render(scene, camera);
+}
+
+// Calcule la position des points dans une sphère
 const getRandomPointInSphere = (radius: number) => {
   const vector3 = new THREE.Vector3();
   vector3.randomDirection();
@@ -210,16 +235,19 @@ const getRandomPointInSphere = (radius: number) => {
   return vector3;
 };
 
+// Fonction SIN
+const oscillator = (time: number, frequency: number = 1, amplitude: number = 1, phase: number = 0, offset: number = 0) => {
+  return Math.sin(time * frequency * Math.PI * 2 + phase * Math.PI * 2) * amplitude + offset;
+}
+
 // Initialisation des étoiles
 const initStars = () => {
   const particlesGeometry = new THREE.BufferGeometry();
-  const particlesCount = 3000;
+  const particlesCount = 4000;
   const particlesPosition = [];
   const particulesOpacity = [];
   const particulesSize = [];
   const particlesColor = [];
-
-  // const vertex = new THREE.Vector3();
   const color = new THREE.Color();
 
   for (let i = 0; i < particlesCount; i++) {
@@ -256,6 +284,49 @@ const initStars = () => {
   starsParticles = new THREE.Points(particlesGeometry, particulesMaterial);
 
   return starsParticles;
+}
+
+// Initialisation du soleil
+const initSun = () => {
+  const particlesGeometry = new THREE.BufferGeometry();
+  const particlesCount = 20000;
+  const particlesPosition = [];
+  const particulesSize = [];
+  const particlesColor = [];
+  const color = new THREE.Color();
+
+  for (let i = 0; i < particlesCount; i++) {
+    // Définit la position de chaque particule
+    let vertex = getRandomPointInSphere(1);
+    particlesPosition.push(vertex.x, vertex.y, vertex.z);
+
+    // Définit la taille de chaque particule
+    particulesSize.push(THREE.MathUtils.randInt(10, 20));
+
+    // Définit la couleur de chaque particule
+    color.setHSL( 0.1 * (i / particlesCount), 0.9, 0.5 );
+    color.toArray(particlesColor, i * 3);
+  }
+
+  particlesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlesPosition, 3));
+  particlesGeometry.setAttribute('color', new THREE.Float32BufferAttribute(particlesColor, 3));
+  particlesGeometry.setAttribute('size', new THREE.Float32BufferAttribute(particulesSize, 1));
+
+  const particulesMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      color: { value: new THREE.Color(0xffffff) },
+      pointTexture: { value: new THREE.TextureLoader().load('./assets/sprites/sun-sprite.png') }
+    },
+    vertexShader: sunVertexShader,
+    fragmentShader: sunFragmentShader,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    depthTest: false,
+  });
+
+  sunParticles = new THREE.Points(particlesGeometry, particulesMaterial);
+
+  return sunParticles;
 }
 
 // Initialisation de la scene
